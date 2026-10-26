@@ -38,14 +38,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.MOZSEARCH_REPOSITORY }}
           ref: ${{ env.MOZSEARCH_REF }}
           path: mozsearch
           sparse-checkout: scripts/spec-prs
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.CONFIG_REPOSITORY }}
           ref: ${{ env.CONFIG_REF }}
