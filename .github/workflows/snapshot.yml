@@ -1,0 +1,76 @@
+# A snapshot of the open pull requests' metadata of the spec repositories that
+# a searchfox tree of specs summarizes (wubspecs'), for its syncs: titles,
+# authors and their associations with the repositories, drafts, labels, review
+# decisions, heads and update times (see mozsearch's scripts/spec-prs/README.md).
+#
+# The repositories are the tree's configured ones (its spec-prs.toml's
+# `repos`, by their URLs in its specs.toml, in the config repo), and the
+# snapshot is mozsearch's scripts/spec-prs/snapshot.py's, with this workflow's
+# token (GraphQL: a query per 100 pull requests, review decisions included),
+# published as the single commit of this repository's `snapshot` branch,
+# force-pushed each time (so the repository doesn't grow), which the tree's
+# syncs read from
+# https://raw.githubusercontent.com/mozsearch/spec-pr-state/snapshot/snapshot.json
+name: Snapshot spec pull requests
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot
+
+env:
+  # mozsearch, for scripts/spec-prs/snapshot.py.
+  MOZSEARCH_REPOSITORY: mozsearch/mozsearch
+  MOZSEARCH_REF: hyperblame
+  # The config repo, with the tree's specs.toml and spec-prs.toml.
+  CONFIG_REPOSITORY: mozsearch/mozsearch-mozilla
+  CONFIG_REF: firefox-disco
+  TREE: wubspecs
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.MOZSEARCH_REPOSITORY }}
+          ref: ${{ env.MOZSEARCH_REF }}
+          path: mozsearch
+          sparse-checkout: scripts/spec-prs
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.CONFIG_REPOSITORY }}
+          ref: ${{ env.CONFIG_REF }}
+          path: config
+          sparse-checkout: ${{ env.TREE }}
+          persist-credentials: false
+      - name: Snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 mozsearch/scripts/spec-prs/snapshot.py --out snapshot.json \
+            --specs "config/$TREE/specs.toml" --config "config/$TREE/spec-prs.toml"
+          python3 -c 'import json; s = json.load(open("snapshot.json")); print(len(s["repos"]), "repositories,", sum(len(r["prs"]) for r in s["repos"].values()), "pull requests,", s["requests"], "requests", "(" + s["limited"] + ")" if s.get("limited") else "")'
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir publish
+          mv snapshot.json publish/
+          cd publish
+          git init -q -b snapshot
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add snapshot.json
+          git commit -q -m "Snapshot of the spec repositories' open pull requests"
+          git push -q --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" \
+            snapshot
