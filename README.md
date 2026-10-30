@@ -26,9 +26,10 @@ to commits' pull requests and issues. The tree's indexing downloads it:
 
 Each run asks only for the pull requests updated since the last one's (about
 20 queries, 100 points, for 391 repositories). The first run pages through
-all of them, and if it runs out of time (15 minutes) or points (it leaves 200
-for the next run's open pull requests), the next run continues where it was.
-If the step fails, the last `merged.json` is published again.
+all of them: on 2026-10-30, 52,281 in 768 queries and 8.5 minutes, in one
+run. If a run runs out of time (15 minutes) or points (it leaves 200 for the
+next run's open pull requests), the next one continues where it was. If the
+step fails, the last `merged.json` is published again.
 
 - **Which repositories:** change the tree's `spec-prs.toml`; the next run
   follows it.
