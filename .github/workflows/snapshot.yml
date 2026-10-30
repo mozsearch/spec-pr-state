@@ -11,6 +11,13 @@
 # force-pushed each time (so the repository doesn't grow), which the tree's
 # syncs read from
 # https://raw.githubusercontent.com/mozsearch/spec-pr-state/snapshot/snapshot.json
+#
+# And beside it, merged.json: the merged pull requests of all of the tree's
+# specs' repositories (their numbers, merge commits and the issues they
+# close), for its blame popups' links, which its indexing downloads
+# (mozsearch's scripts/spec-prs/merged.py, asking only for those updated since
+# the last one's, and continuing a first run's pass through them next time if
+# it runs out of time).  If that fails, the last one is kept.
 name: Snapshot spec pull requests
 
 on:
@@ -36,7 +43,7 @@ env:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,18 +66,33 @@ jobs:
           python3 mozsearch/scripts/spec-prs/snapshot.py --out snapshot.json \
             --specs "config/$TREE/specs.toml" --config "config/$TREE/spec-prs.toml"
           python3 -c 'import json; s = json.load(open("snapshot.json")); print(len(s["repos"]), "repositories,", sum(len(r["prs"]) for r in s["repos"].values()), "pull requests,", s["requests"], "requests", "(" + s["limited"] + ")" if s.get("limited") else "")'
+      - name: Merged pull requests
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 mozsearch/scripts/spec-prs/merged.py --out merged.json \
+            --budget 900 --max-wait 300 --specs "config/$TREE/specs.toml" \
+            --previous "https://raw.githubusercontent.com/${{ github.repository }}/snapshot/merged.json"
       - name: Publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir publish
           mv snapshot.json publish/
+          # (The last merged.json, if this run's failed.)
+          if [ -f merged.json ]; then
+            mv merged.json publish/
+          else
+            curl -sSfL -o publish/merged.json \
+              "https://raw.githubusercontent.com/${{ github.repository }}/snapshot/merged.json" || true
+          fi
           cd publish
           git init -q -b snapshot
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add snapshot.json
-          git commit -q -m "Snapshot of the spec repositories' open pull requests"
+          git add .
+          git commit -q -m "Snapshot of the spec repositories' open and merged pull requests"
           git push -q --force \
             "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" \
             snapshot

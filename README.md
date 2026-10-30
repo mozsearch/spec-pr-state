@@ -17,6 +17,19 @@ The tree's syncs read it, so searchfox never handles a GitHub token. A sync
 gets everything else, the pull requests' heads and what they change, through
 git.
 
+Beside it, the Action publishes the merged pull requests of all of the
+tree's specs' repositories (`scripts/spec-prs/merged.py`): their numbers,
+merge commits and the issues they close, for the tree's blame popups' links
+to commits' pull requests and issues. The tree's indexing downloads it:
+
+    https://raw.githubusercontent.com/mozsearch/spec-pr-state/snapshot/merged.json
+
+Each run asks only for the pull requests updated since the last one's (about
+20 queries, 100 points, for 391 repositories). The first run pages through
+all of them, and if it runs out of time (15 minutes) or points (it leaves 200
+for the next run's open pull requests), the next run continues where it was.
+If the step fails, the last `merged.json` is published again.
+
 - **Which repositories:** change the tree's `spec-prs.toml`; the next run
   follows it.
 - **Run it now:** the Action's "Run workflow" button (`workflow_dispatch`).
